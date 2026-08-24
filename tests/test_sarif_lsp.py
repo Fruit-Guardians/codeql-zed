@@ -196,6 +196,9 @@ class SarifDiagnosticsTests(unittest.TestCase):
             root = Path(directory)
             query = root / "InvalidQuery.ql"
             query.write_text((ROOT / "fixtures/qlpack/InvalidQuery.ql").read_text(encoding="utf-8"), encoding="utf-8")
+            (root / "qlpack.yml").write_text(
+                (ROOT / "fixtures/qlpack/qlpack.yml").read_text(encoding="utf-8"), encoding="utf-8"
+            )
             sarif_path = root / "results.sarif"
             sarif_path.write_text(
                 json.dumps(
@@ -237,7 +240,11 @@ class SarifDiagnosticsTests(unittest.TestCase):
                     "jsonrpc": "2.0",
                     "id": 1,
                     "method": "initialize",
-                    "params": {"rootUri": root_uri, "capabilities": {}},
+                    "params": {
+                        "rootUri": root_uri,
+                        "capabilities": {},
+                        "workspaceFolders": [{"uri": root_uri, "name": root.name}],
+                    },
                 }
                 codeql_client.send(initialize)
                 sarif_client.send(initialize)
