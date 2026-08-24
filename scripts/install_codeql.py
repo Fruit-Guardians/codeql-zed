@@ -62,6 +62,15 @@ def find_binary(destination: Path) -> Path:
     return binary
 
 
+def fix_linux_runtime_permissions(destination: Path) -> None:
+    if platform.system().lower() != "linux":
+        return
+    for name in ("codeql", "java"):
+        for path in destination.rglob(name):
+            if path.is_file():
+                path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
 def write_github_path(binary: Path) -> None:
     github_path = os.environ.get("GITHUB_PATH")
     if github_path:
@@ -90,6 +99,7 @@ def main() -> int:
 
     with zipfile.ZipFile(archive) as package:
         package.extractall(args.destination)
+    fix_linux_runtime_permissions(args.destination)
     binary = find_binary(args.destination)
     write_github_path(binary)
     print(binary)
