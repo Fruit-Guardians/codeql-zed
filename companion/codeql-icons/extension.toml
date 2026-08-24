@@ -1,7 +1,0 @@
-id = "codeql-icons"
-name = "CodeQL Icons"
-version = "0.1.0"
-schema_version = 1
-authors = ["CodeQL Zed contributors"]
-description = "A small companion icon theme for CodeQL .ql and .qll files."
-repository = "https://github.com/Fruit-Guardians/codeql-zed"

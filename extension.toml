@@ -1,6 +1,6 @@
 id = "codeql"
 name = "CodeQL"
-version = "0.3.0"
+version = "0.1.1"
 schema_version = 1
 authors = ["CodeQL Zed contributors"]
 description = "CodeQL query language support powered by Tree-sitter and the CodeQL CLI language server."

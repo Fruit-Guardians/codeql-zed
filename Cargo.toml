@@ -1,6 +1,6 @@
 [package]
 name = "codeql"
-version = "0.3.0"
+version = "0.1.1"
 edition = "2021"
 description = "CodeQL language support for Zed"
 license = "MIT"

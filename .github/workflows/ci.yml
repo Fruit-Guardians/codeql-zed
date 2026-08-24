@@ -27,7 +27,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo test
       - run: cargo clippy --all-targets --all-features -- -D warnings
-      - run: cargo check --target wasm32-wasip2
+      - run: cargo build --release --target wasm32-wasip2
       - name: Install pinned CodeQL CLI
         shell: bash
         run: python scripts/install_codeql.py --version "${{ matrix.codeql }}" --destination "$RUNNER_TEMP/CodeQL CLI"
@@ -36,7 +36,5 @@ jobs:
         run: codeql pack install fixtures/qlpack
       - name: Validate extension resources
         run: python scripts/validate_extension.py
-      - name: Run SARIF sidecar tests
-        run: python -m unittest discover -s tests -v
       - name: Run CodeQL and native LSP smoke checks
         run: python scripts/codeql_smoke.py --codeql codeql --fixtures fixtures/qlpack --require-space-path

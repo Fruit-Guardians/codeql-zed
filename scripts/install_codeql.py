@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 RELEASE_ROOT = "https://github.com/github/codeql-cli-binaries/releases/download"
+DOWNLOAD_TIMEOUT_SECONDS = 60
 
 
 def asset_name() -> str:
@@ -31,7 +32,10 @@ def asset_name() -> str:
 
 def download(url: str, destination: Path) -> None:
     request = urllib.request.Request(url, headers={"User-Agent": "codeql-zed-ci"})
-    with urllib.request.urlopen(request) as response, destination.open("wb") as output:
+    with (
+        urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response,
+        destination.open("wb") as output,
+    ):
         while chunk := response.read(1024 * 1024):
             output.write(chunk)
 

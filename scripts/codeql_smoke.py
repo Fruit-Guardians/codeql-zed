@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import tempfile
 import threading
-import urllib.parse
 from pathlib import Path
 
 
@@ -23,16 +22,6 @@ def parse_version(text: str) -> tuple[int, int, int]:
     if not match:
         raise ValueError(f"No semantic CodeQL version found in: {text!r}")
     return tuple(int(part) for part in match.groups())
-
-
-def file_uri_to_path(uri: str, windows: bool = False) -> str:
-    parsed = urllib.parse.urlparse(uri)
-    if parsed.scheme != "file":
-        raise ValueError(f"Expected a file URI, got {uri!r}")
-    path = urllib.parse.unquote(parsed.path)
-    if windows and re.match(r"^/[A-Za-z]:", path):
-        path = path[1:]
-    return path.replace("/", "\\") if windows else path
 
 
 def run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -204,8 +193,11 @@ def main() -> int:
         help="Directory containing downloaded CodeQL packs needed by the fixture",
     )
     args = parser.parse_args()
-    discovered_codeql = shutil.which(str(args.codeql))
-    codeql = Path(discovered_codeql or args.codeql).resolve()
+    if str(args.codeql) == "codeql":
+        discovered_codeql = shutil.which("codeql")
+        codeql = Path(discovered_codeql or args.codeql).absolute()
+    else:
+        codeql = args.codeql.absolute()
     fixture_root = args.fixtures.resolve()
     if not codeql.is_file():
         raise RuntimeError(f"CodeQL executable does not exist: {codeql}")
@@ -231,8 +223,6 @@ def main() -> int:
         raise RuntimeError("InvalidQuery.ql unexpectedly compiled successfully")
 
     check_malformed_qlpack(codeql, fixture_root)
-    if file_uri_to_path("file:///C:/CodeQL%20CLI/query.ql", windows=True) != r"C:\CodeQL CLI\query.ql":
-        raise RuntimeError("Windows drive URI handling is broken")
     smoke_lsp(codeql, fixture_root, args.search_path.resolve() if args.search_path else None)
     print(f"CodeQL smoke checks passed for CLI {version[0]}.{version[1]}.{version[2]}")
     return 0
