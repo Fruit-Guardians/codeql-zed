@@ -52,6 +52,9 @@ def validate_main_extension() -> None:
         raise AssertionError("CodeQL language metadata is inconsistent")
     if set(language.get("path_suffixes", [])) != {"ql", "qll"}:
         raise AssertionError("CodeQL must claim exactly the .ql and .qll suffixes")
+    servers = manifest.get("language_servers", {})
+    if servers.get("codeql", {}).get("languages") != ["CodeQL"]:
+        raise AssertionError("CodeQL language server metadata is inconsistent")
 
     for relative_path in (
         "languages/codeql/highlights.scm",
@@ -59,11 +62,24 @@ def validate_main_extension() -> None:
         "languages/codeql/indents.scm",
         "languages/codeql/outline.scm",
         "languages/codeql/textobjects.scm",
+        "languages/codeql/runnables.scm",
         "assets/codeql-mark.svg",
+        ".zed/tasks.json",
+        "tools/sarif_lsp.py",
+        "scripts/codeql-sarif-lsp",
+        "scripts/codeql-sarif-lsp.cmd",
     ):
         require_file(relative_path)
 
     validate_svg(ROOT / "assets/codeql-mark.svg")
+    tasks = json.loads((ROOT / ".zed/tasks.json").read_text(encoding="utf-8"))
+    labels = {task.get("label") for task in tasks}
+    expected_labels = {
+        "CodeQL: Compile Current Query",
+        "CodeQL: Analyze Current Query",
+    }
+    if not expected_labels.issubset(labels):
+        raise AssertionError(".zed/tasks.json is missing a CodeQL compile or analyze task")
 
 
 def validate_companion_icon_theme() -> None:

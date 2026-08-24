@@ -1,6 +1,8 @@
 /target/
 .DS_Store
-.zed/
+__pycache__/
+/.zed/settings.json
+/.zed/debug.json
 /extension.wasm
 /grammars/
 /plan.md

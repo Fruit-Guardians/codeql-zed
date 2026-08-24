@@ -4,11 +4,23 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  rust:
-    runs-on: ubuntu-latest
+  checks:
+    name: ${{ matrix.os }} / CodeQL ${{ matrix.codeql }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+        codeql: [2.26.1, 2.26.3]
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip2
@@ -16,7 +28,12 @@ jobs:
       - run: cargo test
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo check --target wasm32-wasip2
+      - name: Install pinned CodeQL CLI
+        shell: bash
+        run: python scripts/install_codeql.py --version "${{ matrix.codeql }}" --destination "$RUNNER_TEMP/CodeQL CLI"
       - name: Validate extension resources
-        run: python3 scripts/validate_extension.py
-      - name: Check CodeQL fixtures when CLI is available
-        run: bash scripts/check-codeql-fixtures.sh
+        run: python scripts/validate_extension.py
+      - name: Run SARIF sidecar tests
+        run: python -m unittest discover -s tests -v
+      - name: Run CodeQL and native LSP smoke checks
+        run: python scripts/codeql_smoke.py --codeql codeql --fixtures fixtures/qlpack --require-space-path

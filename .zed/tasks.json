@@ -1,0 +1,35 @@
+[
+  {
+    "label": "CodeQL: Compile Current Query",
+    "command": "codeql",
+    "args": [
+      "query",
+      "compile",
+      "$ZED_FILE",
+      "--search-path=${CODEQL_SEARCH_PATH:$ZED_WORKTREE_ROOT/.codeql/qlpacks}"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "tags": ["codeql-query"],
+    "reveal": "always",
+    "use_new_terminal": false
+  },
+  {
+    "label": "CodeQL: Analyze Current Query",
+    "command": "codeql",
+    "args": [
+      "database",
+      "analyze",
+      "${CODEQL_DATABASE:$ZED_WORKTREE_ROOT/.codeql/database}",
+      "${CODEQL_QUERY_SUITE:$ZED_FILE}",
+      "--format=sarifv2.1.0",
+      "--output=${CODEQL_SARIF_OUTPUT:$ZED_WORKTREE_ROOT/.codeql/results.sarif}",
+      "--search-path=${CODEQL_SEARCH_PATH:$ZED_WORKTREE_ROOT/.codeql/qlpacks}",
+      "--threads=${CODEQL_THREADS:0}",
+      "--ram=${CODEQL_RAM:0}"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "tags": ["codeql-query"],
+    "reveal": "always",
+    "use_new_terminal": false
+  }
+]
