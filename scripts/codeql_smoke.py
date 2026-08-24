@@ -101,7 +101,12 @@ class LspClient:
             except queue.Empty as error:
                 raise RuntimeError(f"Timed out waiting for LSP response; received {messages[-5:]}") from error
             if message is None:
-                raise RuntimeError("CodeQL language server exited before responding")
+                if self.process.poll() is None:
+                    stderr = ""
+                else:
+                    stderr = self.process.stderr.read().decode("utf-8", errors="replace") if self.process.stderr else ""
+                detail = f": {stderr.strip()}" if stderr.strip() else ""
+                raise RuntimeError(f"CodeQL language server exited before responding{detail}")
             if "__reader_error__" in message:
                 raise RuntimeError(message["__reader_error__"])
             messages.append(message)
