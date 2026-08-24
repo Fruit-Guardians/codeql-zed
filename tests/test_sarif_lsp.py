@@ -188,6 +188,8 @@ class SarifDiagnosticsTests(unittest.TestCase):
                     process.wait()
 
     def test_codeql_and_sarif_can_publish_for_the_same_uri(self) -> None:
+        if os.name == "nt":
+            self.skipTest("Windows native CodeQL child shutdown is covered by codeql_smoke.py")
         codeql = shutil.which("codeql")
         if codeql is None:
             self.skipTest("CodeQL CLI is not on PATH")

@@ -125,7 +125,10 @@ class LspClient:
             self.process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             self.process.kill()
-            self.process.wait()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
         for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
             if stream is not None:
                 stream.close()
