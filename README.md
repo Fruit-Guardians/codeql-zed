@@ -9,8 +9,8 @@ Tree-sitter QL syntax support with the CodeQL CLI's native language server.
 
 ![CodeQL query diagnostics in Zed](assets/zed-codeql-valid-query.png)
 
-> Status: the repository contains the v0.1.0 baseline plus the v0.1.1, v0.2,
-> and v0.3 prototype work. The official `zed-industries/extensions` PR is
+> Status: `v0.1.0` is released; `main` now contains the v0.1.1, v0.2, and v0.3
+> prototype work. The official `zed-industries/extensions` PR is
 > intentionally not submitted yet. `plan.md` and the private `docs/` folder
 > are local-only and are not tracked by this repository.
 
@@ -198,7 +198,7 @@ against CodeQL CLI 2.26.1 and 2.26.3.
 
 | Milestone | State |
 | --- | --- |
-| v0.1.0 install/LSP baseline | implemented; release tag and GitHub Release pending final verification |
+| v0.1.0 install/LSP baseline | released as tag and GitHub Release |
 | v0.1.1 stability checks | implemented in CI and smoke scripts |
 | v0.2 static query tasks | implemented in `.zed/tasks.json` and `runnables.scm` |
 | v0.3 SARIF sidecar | protocol implemented; same-URI dual-LSP tested; separate Zed companion packaging pending review |

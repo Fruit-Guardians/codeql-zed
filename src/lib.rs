@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use zed_extension_api::{
     self as zed,
@@ -6,54 +7,101 @@ use zed_extension_api::{
     Command, LanguageServerId, Result, Worktree,
 };
 
-const LANGUAGE_SERVER_ID: &str = "codeql";
+const CODEQL_LANGUAGE_SERVER_ID: &str = "codeql";
+const SARIF_LANGUAGE_SERVER_ID: &str = "codeql_sarif";
 const INSTALL_URL: &str = "https://github.com/github/codeql-cli-binaries";
-const DEFAULT_ARGUMENTS: &[&str] = &["execute", "language-server", "--check-errors", "ON_CHANGE"];
+const CODEQL_DEFAULT_ARGUMENTS: &[&str] =
+    &["execute", "language-server", "--check-errors", "ON_CHANGE"];
+const SARIF_DEFAULT_ARGUMENTS: &[&str] = &["--stdio"];
+const SARIF_BINARY_NAME: &str = "codeql-sarif-lsp";
 
 struct CodeqlExtension;
 
-fn ensure_language_server_id(language_server_id: &LanguageServerId) -> Result<()> {
-    if language_server_id.as_ref() == LANGUAGE_SERVER_ID {
-        Ok(())
-    } else {
-        Err(format!(
+fn settings_key(language_server_id: &LanguageServerId) -> Result<&'static str> {
+    match language_server_id.as_ref() {
+        CODEQL_LANGUAGE_SERVER_ID => Ok(CODEQL_LANGUAGE_SERVER_ID),
+        SARIF_LANGUAGE_SERVER_ID => Ok(SARIF_LANGUAGE_SERVER_ID),
+        _ => Err(format!(
             "Unsupported CodeQL language server id: {language_server_id}"
-        ))
+        )),
     }
 }
 
-fn lsp_settings(worktree: &Worktree) -> Result<zed::settings::LspSettings> {
-    LspSettings::for_worktree(LANGUAGE_SERVER_ID, worktree)
-        .map_err(|error| format!("Could not read lsp.codeql settings: {error}"))
+fn lsp_settings(
+    language_server_id: &LanguageServerId,
+    worktree: &Worktree,
+) -> Result<zed::settings::LspSettings> {
+    let key = settings_key(language_server_id)?;
+    LspSettings::for_worktree(key, worktree)
+        .map_err(|error| format!("Could not read lsp.{key} settings: {error}"))
 }
 
 fn configured_binary_path(
     binary: Option<&CommandSettings>,
     discovered_path: Option<String>,
+    language_server_id: &str,
 ) -> Result<String> {
     if let Some(path) = binary.and_then(|settings| settings.path.as_deref()) {
         if path.trim().is_empty() {
-            return Err("The configured CodeQL binary path is empty. Set lsp.codeql.binary.path to an executable file.".to_string());
+            return Err(format!(
+                "The configured {language_server_id} binary path is empty. Set lsp.{language_server_id}.binary.path to an executable file."
+            ));
         }
-        return Ok(path.trim().to_string());
+        let path = path.trim();
+        if !Path::new(path).is_file() {
+            return Err(format!(
+                "The configured {language_server_id} binary path does not exist: {path}"
+            ));
+        }
+        return Ok(path.to_string());
     }
 
     discovered_path.ok_or_else(|| {
-        format!(
-            "CodeQL CLI was not found in the worktree PATH. Install it from {INSTALL_URL}, then restart Zed or set lsp.codeql.binary.path to the absolute executable path."
-        )
+        if language_server_id == CODEQL_LANGUAGE_SERVER_ID {
+            format!(
+                "CodeQL CLI was not found in the worktree PATH. Install it from {INSTALL_URL}, then restart Zed or set lsp.codeql.binary.path to the absolute executable path."
+            )
+        } else {
+            format!(
+                "The SARIF diagnostics sidecar was not found in the worktree PATH. Add scripts/ to PATH or set lsp.{language_server_id}.binary.path to codeql-sarif-lsp."
+            )
+        }
     })
 }
 
-fn configured_arguments(binary: Option<&CommandSettings>) -> Vec<String> {
-    binary
+fn configured_arguments(
+    language_server_id: &str,
+    binary: Option<&CommandSettings>,
+) -> Result<Vec<String>> {
+    let defaults = if language_server_id == CODEQL_LANGUAGE_SERVER_ID {
+        CODEQL_DEFAULT_ARGUMENTS
+    } else {
+        SARIF_DEFAULT_ARGUMENTS
+    };
+    let arguments = binary
         .and_then(|settings| settings.arguments.clone())
         .unwrap_or_else(|| {
-            DEFAULT_ARGUMENTS
+            defaults
                 .iter()
                 .map(|argument| (*argument).to_string())
                 .collect()
-        })
+        });
+
+    if language_server_id == CODEQL_LANGUAGE_SERVER_ID
+        && (arguments.len() < 2 || arguments[0] != "execute" || arguments[1] != "language-server")
+    {
+        return Err("lsp.codeql.binary.arguments must start with `execute language-server`; include the complete CodeQL language-server command.".to_string());
+    }
+    if language_server_id == SARIF_LANGUAGE_SERVER_ID
+        && !arguments.iter().any(|argument| argument == "--stdio")
+    {
+        return Err(
+            "lsp.codeql_sarif.binary.arguments must include `--stdio` for the LSP transport."
+                .to_string(),
+        );
+    }
+
+    Ok(arguments)
 }
 
 fn merge_environment(
@@ -80,18 +128,19 @@ fn merge_environment(
 }
 
 fn build_command(
+    language_server_id: &str,
     binary: Option<&CommandSettings>,
     executable: String,
     shell_environment: Vec<(String, String)>,
-) -> Command {
-    Command {
+) -> Result<Command> {
+    Ok(Command {
         command: executable,
-        args: configured_arguments(binary),
+        args: configured_arguments(language_server_id, binary)?,
         env: merge_environment(
             shell_environment,
             binary.and_then(|settings| settings.env.as_ref()),
         ),
-    }
+    })
 }
 
 impl zed::Extension for CodeqlExtension {
@@ -104,13 +153,17 @@ impl zed::Extension for CodeqlExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Command> {
-        ensure_language_server_id(language_server_id)?;
-
-        let settings = lsp_settings(worktree)?;
+        let key = settings_key(language_server_id)?;
+        let settings = lsp_settings(language_server_id, worktree)?;
         let binary = settings.binary.as_ref();
-        let executable = configured_binary_path(binary, worktree.which("codeql"))?;
+        let discovered = if key == CODEQL_LANGUAGE_SERVER_ID {
+            worktree.which("codeql")
+        } else {
+            worktree.which(SARIF_BINARY_NAME)
+        };
+        let executable = configured_binary_path(binary, discovered, key)?;
 
-        Ok(build_command(binary, executable, worktree.shell_env()))
+        build_command(key, binary, executable, worktree.shell_env())
     }
 
     fn language_server_initialization_options(
@@ -118,8 +171,7 @@ impl zed::Extension for CodeqlExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Option<zed::serde_json::Value>> {
-        ensure_language_server_id(language_server_id)?;
-        let settings = lsp_settings(worktree)?;
+        let settings = lsp_settings(language_server_id, worktree)?;
         Ok(settings.initialization_options)
     }
 
@@ -128,8 +180,7 @@ impl zed::Extension for CodeqlExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Option<zed::serde_json::Value>> {
-        ensure_language_server_id(language_server_id)?;
-        let settings = lsp_settings(worktree)?;
+        let settings = lsp_settings(language_server_id, worktree)?;
         Ok(settings.settings)
     }
 }
@@ -151,36 +202,67 @@ mod tests {
 
     #[test]
     fn uses_the_explicit_binary_path_before_path_discovery() {
+        let directory = std::env::temp_dir().join(format!("CodeQL CLI {}", line!()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("codeql");
+        std::fs::write(&path, b"placeholder").unwrap();
         let binary = CommandSettings {
-            path: Some("/opt/CodeQL CLI/codeql".to_string()),
+            path: Some(path.to_string_lossy().to_string()),
             arguments: None,
             env: None,
         };
 
         assert_eq!(
-            configured_binary_path(Some(&binary), Some("/usr/local/bin/codeql".to_string()))
-                .unwrap(),
-            "/opt/CodeQL CLI/codeql"
+            configured_binary_path(
+                Some(&binary),
+                Some("/usr/local/bin/codeql".to_string()),
+                CODEQL_LANGUAGE_SERVER_ID,
+            )
+            .unwrap(),
+            path.to_string_lossy()
         );
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_dir(directory);
     }
 
     #[test]
     fn trims_outer_whitespace_from_an_explicit_binary_path() {
+        let directory = std::env::temp_dir().join(format!("CodeQL CLI {}", line!()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("codeql");
+        std::fs::write(&path, b"placeholder").unwrap();
         let binary = CommandSettings {
-            path: Some("  /opt/CodeQL CLI/codeql  ".to_string()),
+            path: Some(format!("  {}  ", path.to_string_lossy())),
             arguments: None,
             env: None,
         };
 
         assert_eq!(
-            configured_binary_path(Some(&binary), None).unwrap(),
-            "/opt/CodeQL CLI/codeql"
+            configured_binary_path(Some(&binary), None, CODEQL_LANGUAGE_SERVER_ID).unwrap(),
+            path.to_string_lossy()
         );
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn reports_a_helpful_error_when_configured_path_is_missing() {
+        let binary = CommandSettings {
+            path: Some("/definitely/missing/CodeQL CLI/codeql".to_string()),
+            arguments: None,
+            env: None,
+        };
+
+        let error =
+            configured_binary_path(Some(&binary), None, CODEQL_LANGUAGE_SERVER_ID).unwrap_err();
+
+        assert!(error.contains("does not exist"));
+        assert!(error.contains("CodeQL CLI"));
     }
 
     #[test]
     fn reports_a_helpful_error_when_codeql_is_missing() {
-        let error = configured_binary_path(None, None).unwrap_err();
+        let error = configured_binary_path(None, None, CODEQL_LANGUAGE_SERVER_ID).unwrap_err();
 
         assert!(error.contains("CodeQL CLI was not found"));
         assert!(error.contains("lsp.codeql.binary.path"));
@@ -190,16 +272,27 @@ mod tests {
     #[test]
     fn default_arguments_start_the_codeql_language_server() {
         assert_eq!(
-            configured_arguments(None),
+            configured_arguments(CODEQL_LANGUAGE_SERVER_ID, None).unwrap(),
             vec!["execute", "language-server", "--check-errors", "ON_CHANGE"]
         );
     }
 
     #[test]
-    fn explicit_arguments_replace_defaults_even_when_empty() {
+    fn rejects_empty_custom_arguments() {
         let binary = settings(Some(vec![]));
 
-        assert!(configured_arguments(Some(&binary)).is_empty());
+        let error = configured_arguments(CODEQL_LANGUAGE_SERVER_ID, Some(&binary)).unwrap_err();
+
+        assert!(error.contains("binary.arguments"));
+    }
+
+    #[test]
+    fn rejects_custom_arguments_without_the_language_server_command() {
+        let binary = settings(Some(vec!["execute", "query", "compile"]));
+
+        let error = configured_arguments(CODEQL_LANGUAGE_SERVER_ID, Some(&binary)).unwrap_err();
+
+        assert!(error.contains("execute language-server"));
     }
 
     #[test]
@@ -220,14 +313,37 @@ mod tests {
     #[test]
     fn command_keeps_paths_with_spaces_as_one_program_argument() {
         let binary = CommandSettings {
-            path: Some("/opt/CodeQL CLI/codeql".to_string()),
+            path: Some("/definitely/missing/CodeQL CLI/codeql".to_string()),
             arguments: Some(vec!["execute".to_string(), "language-server".to_string()]),
             env: None,
         };
 
-        let command = build_command(Some(&binary), binary.path.clone().unwrap(), Vec::new());
+        let command = build_command(
+            CODEQL_LANGUAGE_SERVER_ID,
+            Some(&binary),
+            binary.path.clone().unwrap(),
+            Vec::new(),
+        )
+        .unwrap();
 
-        assert_eq!(command.command, "/opt/CodeQL CLI/codeql");
+        assert_eq!(command.command, "/definitely/missing/CodeQL CLI/codeql");
         assert_eq!(command.args, vec!["execute", "language-server"]);
+    }
+
+    #[test]
+    fn sarif_sidecar_defaults_to_stdio() {
+        assert_eq!(
+            configured_arguments(SARIF_LANGUAGE_SERVER_ID, None).unwrap(),
+            vec!["--stdio"]
+        );
+    }
+
+    #[test]
+    fn rejects_sarif_arguments_without_stdio() {
+        let binary = settings(Some(vec!["--port", "9000"]));
+
+        let error = configured_arguments(SARIF_LANGUAGE_SERVER_ID, Some(&binary)).unwrap_err();
+
+        assert!(error.contains("--stdio"));
     }
 }
