@@ -31,13 +31,12 @@ jobs:
       - name: Install pinned CodeQL CLI
         shell: bash
         run: python scripts/install_codeql.py --version "${{ matrix.codeql }}" --destination "$RUNNER_TEMP/CodeQL CLI"
-      - name: Install fixture query packs
+      - name: Install fixture query-pack dependencies
         shell: bash
-        run: codeql pack download codeql/javascript-all@2.8.1
+        run: codeql pack install fixtures/qlpack
       - name: Validate extension resources
         run: python scripts/validate_extension.py
       - name: Run SARIF sidecar tests
         run: python -m unittest discover -s tests -v
       - name: Run CodeQL and native LSP smoke checks
-        shell: bash
-        run: python scripts/codeql_smoke.py --codeql codeql --fixtures fixtures/qlpack --require-space-path --search-path "$HOME/.codeql/packages/codeql/javascript-all"
+        run: python scripts/codeql_smoke.py --codeql codeql --fixtures fixtures/qlpack --require-space-path
