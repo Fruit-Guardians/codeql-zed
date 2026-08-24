@@ -1,0 +1,33 @@
+{
+  "$schema": "https://zed.dev/schema/icon_themes/v0.3.0.json",
+  "name": "CodeQL Icons",
+  "author": "CodeQL Zed contributors",
+  "themes": [
+    {
+      "name": "CodeQL Icons Dark",
+      "appearance": "dark",
+      "file_suffixes": {
+        "ql": "codeql",
+        "qll": "codeql"
+      },
+      "file_icons": {
+        "codeql": {
+          "path": "./icons/codeql.svg"
+        }
+      }
+    },
+    {
+      "name": "CodeQL Icons Light",
+      "appearance": "light",
+      "file_suffixes": {
+        "ql": "codeql",
+        "qll": "codeql"
+      },
+      "file_icons": {
+        "codeql": {
+          "path": "./icons/codeql.svg"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+      - run: cargo fmt --check
+      - run: cargo test
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo check --target wasm32-wasip2
+      - name: Validate extension resources
+        run: python3 scripts/validate_extension.py
+      - name: Check CodeQL fixtures when CLI is available
+        run: bash scripts/check-codeql-fixtures.sh

@@ -1,0 +1,13 @@
+[package]
+name = "codeql"
+version = "0.1.0"
+edition = "2021"
+description = "CodeQL language support for Zed"
+license = "MIT"
+repository = "https://github.com/Fruit-Guardians/codeql-zed"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7.0"
