@@ -134,9 +134,12 @@ class LspClient:
                 stream.close()
 
 
-def smoke_lsp(codeql: Path, fixture_root: Path) -> None:
+def smoke_lsp(codeql: Path, fixture_root: Path, search_path: Path | None) -> None:
     query = fixture_root / "InvalidQuery.ql"
-    client = LspClient([str(codeql), "execute", "language-server", "--check-errors", "ON_CHANGE"], fixture_root)
+    command = [str(codeql), "execute", "language-server", "--check-errors", "ON_CHANGE"]
+    if search_path is not None:
+        command.append(f"--search-path={search_path}")
+    client = LspClient(command, fixture_root)
     try:
         root_uri = fixture_root.as_uri()
         client.send(
@@ -194,6 +197,12 @@ def main() -> int:
     parser.add_argument("--codeql", type=Path, default=Path("codeql"))
     parser.add_argument("--fixtures", type=Path, required=True)
     parser.add_argument("--require-space-path", action="store_true")
+    parser.add_argument(
+        "--search-path",
+        type=Path,
+        default=None,
+        help="Directory containing downloaded CodeQL packs needed by the fixture",
+    )
     args = parser.parse_args()
     discovered_codeql = shutil.which(str(args.codeql))
     codeql = Path(discovered_codeql or args.codeql).resolve()
@@ -210,17 +219,21 @@ def main() -> int:
     if version < MINIMUM_VERSION:
         raise RuntimeError(f"CodeQL CLI {version} is older than the supported minimum {MINIMUM_VERSION}")
 
-    valid = run([str(codeql), "query", "compile", "ValidQuery.ql"], fixture_root)
+    search_args = []
+    if args.search_path is not None:
+        search_args.append(f"--search-path={args.search_path.resolve()}")
+
+    valid = run([str(codeql), "query", "compile", *search_args, "ValidQuery.ql"], fixture_root)
     if valid.returncode != 0:
         raise RuntimeError(f"ValidQuery.ql failed to compile:\n{valid.stdout}\n{valid.stderr}")
-    invalid = run([str(codeql), "query", "compile", "InvalidQuery.ql"], fixture_root)
+    invalid = run([str(codeql), "query", "compile", *search_args, "InvalidQuery.ql"], fixture_root)
     if invalid.returncode == 0:
         raise RuntimeError("InvalidQuery.ql unexpectedly compiled successfully")
 
     check_malformed_qlpack(codeql, fixture_root)
     if file_uri_to_path("file:///C:/CodeQL%20CLI/query.ql", windows=True) != r"C:\CodeQL CLI\query.ql":
         raise RuntimeError("Windows drive URI handling is broken")
-    smoke_lsp(codeql, fixture_root)
+    smoke_lsp(codeql, fixture_root, args.search_path.resolve() if args.search_path else None)
     print(f"CodeQL smoke checks passed for CLI {version[0]}.{version[1]}.{version[2]}")
     return 0
 

@@ -39,4 +39,5 @@ jobs:
       - name: Run SARIF sidecar tests
         run: python -m unittest discover -s tests -v
       - name: Run CodeQL and native LSP smoke checks
-        run: python scripts/codeql_smoke.py --codeql codeql --fixtures fixtures/qlpack --require-space-path
+        shell: bash
+        run: python scripts/codeql_smoke.py --codeql codeql --fixtures fixtures/qlpack --require-space-path --search-path "$HOME/.codeql/packages"
