@@ -31,6 +31,9 @@ jobs:
       - name: Install pinned CodeQL CLI
         shell: bash
         run: python scripts/install_codeql.py --version "${{ matrix.codeql }}" --destination "$RUNNER_TEMP/CodeQL CLI"
+      - name: Install fixture query packs
+        shell: bash
+        run: codeql pack download codeql/javascript-all@2.8.1
       - name: Validate extension resources
         run: python scripts/validate_extension.py
       - name: Run SARIF sidecar tests
